@@ -153,7 +153,7 @@ export async function runDailyCycle(): Promise<DailyCycleResult> {
               })
               continue
             }
-            await supabase.from('gtm_content_queue').insert({
+            const { error: insertError } = await supabase.from('gtm_content_queue').insert({
               channel: draft.channel,
               category: draft.category,
               hook: draft.hook,
@@ -163,6 +163,16 @@ export async function runDailyCycle(): Promise<DailyCycleResult> {
               source_evidence: draft.source_evidence,
               bottleneck,
             })
+            if (insertError) {
+              actionsSkipped++
+              await logActivity({
+                action_type: 'content_draft', channel: 'internal', autonomy_level: LEVEL_C,
+                target: draft.channel, reason: `Insert into gtm_content_queue failed: ${insertError.message}`, hypothesis: null,
+                content: draft.hook, status: 'failed', result: null, metric: null, cost: 0,
+                confidence: null, follow_up: 'Check that supabase/gtm_schema.sql has been run (in full) against this Supabase project', experiment_id: null,
+              })
+              continue
+            }
             founderActionsQueued++
             actionsDone++
             await logActivity({

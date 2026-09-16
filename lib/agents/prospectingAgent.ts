@@ -172,5 +172,10 @@ export async function runProspectingPipeline(qualifiedBudget: number): Promise<P
     qualified: totalQualified,
     enriched_with_email: totalEnriched,
     inserted: totalInserted,
+    skippedReason:
+      totalDiscovered === 0
+        ? 'Apollo returned 0 results across all regions — on the Free plan this almost always means the ' +
+          'search API is plan-restricted, not that no one matched. Use the dashboard\u2019s CSV import instead.'
+        : undefined,
   }
 }
