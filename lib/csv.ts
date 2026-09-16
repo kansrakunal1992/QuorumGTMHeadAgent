@@ -62,7 +62,11 @@ export function mapCsvRowToProspect(row: Record<string, string>): ImportedRow | 
     name: fullName,
     company: pick(row, 'company', 'company name', 'organization'),
     role: pick(row, 'title', 'job title', 'position'),
-    geography: pick(row, 'city', 'location') ?? [row['city'], row['state'], row['country']].filter(Boolean).join(', ') || null,
+    geography:
+      pick(row, 'location') ??
+      ([row['city'], row['state'], row['country']]
+        .filter(Boolean)
+        .join(', ') || null),
     email: pick(row, 'email', 'email address', 'work email'),
     linkedin_url: pick(row, 'person linkedin url', 'linkedin url', 'linkedin'),
   }
