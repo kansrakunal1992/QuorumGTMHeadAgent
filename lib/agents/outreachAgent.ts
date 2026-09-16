@@ -22,7 +22,7 @@
 import 'server-only'
 import { createServiceClient } from '../supabase'
 import { generateJson } from '../ai-client'
-import { getConnectedChannels } from '../config'
+import { getConnectedChannels, QUORUM_BOOKING_URL } from '../config'
 import type { Prospect, Channel } from '../types'
 
 const SYSTEM_PROMPT = `You are the Outreach Agent for Quorum's GTM Head.
@@ -33,8 +33,12 @@ message for the given prospect and channel. Requirements:
 - Start a relevant conversation. Do not aggressively sell.
 - No manipulative language. No fabricated personal knowledge about the
   prospect beyond what's given in their record.
-- Smallest possible next step (e.g. "worth a 15-min conversation?"), not a
-  pitch to buy.
+- Smallest possible next step. There is a real, live, founder-led paid
+  Decision Session bookable today at ${QUORUM_BOOKING_URL} (₹299, one-time,
+  no login) — for a high-fit prospect this is a genuinely good concrete next
+  step (a real conversation with the founder, not a sales pitch), better
+  than a vague "worth a chat?". Use it where it fits naturally; don't force
+  it into a first-touch message that hasn't earned that ask yet.
 Return ONLY JSON: { "message": string, "why_this_person": string,
 "why_this_message": string, "recommended_timing": string,
 "expected_objective": string }`

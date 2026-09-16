@@ -71,3 +71,8 @@ export function getConnectedChannels() {
 
 export const QUORUM_SITE_URL = process.env.QUORUM_MARKETING_URL || 'https://quorumvault.org'
 export const QUORUM_APP_URL = process.env.QUORUM_APP_URL || 'https://app.quorumvault.org'
+// Live, founder-led ₹299 paid Decision Session booking page. This is a real
+// revenue + proof-of-demand conversion point that already exists — content
+// and outreach drafts are told about it so they can use it as a concrete
+// CTA instead of a vague "let's talk", where that fits the bottleneck.
+export const QUORUM_BOOKING_URL = process.env.QUORUM_BOOKING_URL || 'https://quorumvault.org/kunal'

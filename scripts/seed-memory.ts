@@ -99,6 +99,15 @@ const seeds: Array<{ category: string; content: string; confidence: number }> = 
       'not from a site-side analytics tool, unless/until one is added.',
     confidence: 0.9,
   },
+  {
+    category: 'channel',
+    content:
+      'Live, founder-led paid Decision Session booking page at https://quorumvault.org/kunal — ₹299, one-time, ' +
+      'no login required, entered directly from the marketing site. This is a real, working conversion point ' +
+      '(not hypothetical) and a strong CTA for warm/high-fit prospects and conversion-focused content, ahead ' +
+      'of asking someone to sign up for the free tier cold.',
+    confidence: 1,
+  },
 ]
 
 async function main() {

@@ -8,6 +8,7 @@
 import 'server-only'
 import { createServiceClient } from '../supabase'
 import { generateJson } from '../ai-client'
+import { QUORUM_BOOKING_URL } from '../config'
 import type { FunnelBottleneck, ContentChannel } from '../types'
 
 const CATEGORIES = [
@@ -34,6 +35,13 @@ verbatim in substance, do not alter the facts). Draft content ideas that
 target the bottleneck. NEVER invent a testimonial, statistic, or case study
 that isn't in the provided proof points — if you have no proof point to use,
 write a format that doesn't require one (e.g. a provocative question).
+
+There is a real, live, founder-led paid Decision Session people can book
+today at ${QUORUM_BOOKING_URL} (₹299, one-time, no login needed). When the
+bottleneck is "conversion" or "second_decision", prefer this as the CTA —
+it's a concrete, low-commitment next step that leads straight to revenue,
+not a vague "let's talk". Don't force it into every draft (e.g. an
+awareness/provocative-question post aimed at pure traffic doesn't need it).
 
 These drafts are BROADCAST content the founder posts publicly — a LinkedIn
 post, an Instagram post, or a WhatsApp Status update — never a message to a
