@@ -1,13 +1,22 @@
 // lib/providers/apolloProvider.ts
 // ── Apollo — ProspectSearchProvider ──────────────────────────────────────
 //
+// KNOWN LIMITATION (confirmed against a real Free-plan account, Sept 2026):
+// the People Search endpoint this file calls (mixed_people/search, shown in
+// Apollo's own API-key permission screen as "mixed_people/api_search") is
+// NOT available on Apollo's Free plan — not a scoping issue, it's excluded
+// even with a master key. It only unlocks on a paid plan (Basic, $49/mo+).
+//
+// Until you upgrade, this function will 403 — that's expected. The free
+// path is app/api/prospects/import (search manually in Apollo's UI, paste
+// the CSV export into the dashboard); everything downstream of discovery
+// (qualification, Hunter enrichment, outreach drafting) is unaffected. Once
+// you're on a paid Apollo plan, this file works as-is with no changes.
+//
 // Uses ONLY the People Search endpoint — deliberately does not call
 // Apollo's people/match (enrich/reveal) endpoint, which is paid-plan-gated
 // and burns credits fast. Email discovery is left to Hunter (hunterProvider.ts),
 // which has a real, separate free allowance.
-//
-// When creating your Apollo API key, scope it to "People Search" only —
-// nothing else is needed for this integration.
 //
 // VERIFY BEFORE RELYING ON THIS: Apollo's API surface does shift over time.
 // Cross-check the endpoint path and request shape against

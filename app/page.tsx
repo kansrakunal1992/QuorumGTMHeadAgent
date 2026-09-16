@@ -96,6 +96,22 @@ export default function DashboardPage() {
     load(adminCode)
   }
 
+  const [importCsv, setImportCsv] = useState('')
+  const [importResult, setImportResult] = useState<string | null>(null)
+
+  const runImport = async () => {
+    setImportResult('Importing…')
+    const res = await fetch('/api/prospects/import', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${adminCode}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ csv: importCsv }),
+    })
+    if (!res.ok) { setImportResult('Import failed — check the admin code and try again.'); return }
+    const data = await res.json()
+    setImportResult(`Parsed ${data.parsed}, added ${data.inserted}, skipped ${data.skipped} (dupes/blank).`)
+    setImportCsv('')
+  }
+
   if (!entered) {
     return (
       <div className="container">
@@ -136,6 +152,27 @@ export default function DashboardPage() {
         <div><div className="stat-label">To send</div><div className="stat-value">{data.founder_actions_pending.length}</div></div>
       </div>
       {data.plan && <p className="muted card">{data.plan.reasoning_summary}</p>}
+
+      {/* Free-plan workaround: Apollo's search API is paid-only, so search
+          in Apollo's UI and paste the CSV export here — everything after
+          (qualify/enrich/outreach) still runs automatically. */}
+      <h2>🗂️ Import prospects (Apollo CSV export)</h2>
+      <div className="card">
+        <p className="muted" style={{ marginTop: 0 }}>
+          Search in Apollo&apos;s web UI (free), export/copy results as CSV, paste below.
+        </p>
+        <textarea
+          value={importCsv}
+          onChange={(e) => setImportCsv(e.target.value)}
+          placeholder="First Name,Last Name,Title,Company,Email,Person Linkedin Url,City,Country&#10;..."
+          rows={6}
+          style={{ width: '100%', background: 'var(--panel)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 8, padding: 10, fontFamily: 'monospace', fontSize: 12 }}
+        />
+        <div style={{ marginTop: 8 }}>
+          <button onClick={runImport} disabled={!importCsv.trim()}>Import</button>
+          {importResult && <span className="muted" style={{ marginLeft: 8 }}>{importResult}</span>}
+        </div>
+      </div>
 
       {/* Broadcast content: LinkedIn post / Instagram post / WhatsApp Status */}
       <h2>📤 Post today</h2>
