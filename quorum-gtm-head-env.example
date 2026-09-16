@@ -1,0 +1,77 @@
+# ── Quorum GTM Head — Environment Variables ─────────────────────────────
+# Copy this file's structure into Railway → Project → Variables.
+# Nothing in this project should ever be committed with real values.
+
+# ─── Supabase (REUSE the SAME project as the main Quorum app — do not
+#     create a new Supabase project; copy these two values across from the
+#     main app's own Railway variables) ───────────────────────────────────
+SUPABASE_URL=
+SUPABASE_SERVICE_ROLE_KEY=
+
+# ─── AI provider (default: DeepSeek V4 Pro) ────────────────────────────
+AI_PROVIDER=deepseek
+DEEPSEEK_API_KEY=
+DEEPSEEK_MODEL=deepseek-v4-pro
+# Only needed if you set AI_PROVIDER=openai_compatible instead:
+# AI_PROVIDER_API_KEY=
+# AI_PROVIDER_BASE_URL=
+# AI_PROVIDER_MODEL=
+
+# ─── Admin / cron auth (generate two long random strings — e.g.
+#     `openssl rand -hex 24` — do not reuse the main app's ADMIN_CODE) ───
+ADMIN_CODE=
+CRON_SECRET=
+
+# ─── Autonomy & guardrails ──────────────────────────────────────────────
+GTM_AUTONOMY_MODE=full                 # full | conservative | research_only
+GTM_DAILY_SPEND_CAP_INR=0              # 0 = no autonomous ad-spend authority yet
+
+# Per-category daily caps — all optional, defaults shown are the spec's own
+GTM_LIMIT_TOTAL_ACTIONS=100
+GTM_LIMIT_PROSPECTS_RESEARCHED=50
+GTM_LIMIT_OUTREACH_MESSAGES=15
+GTM_LIMIT_FOLLOW_UPS=10
+GTM_LIMIT_LINKEDIN_COMMENTS=20
+GTM_LIMIT_LINKEDIN_POSTS=2
+GTM_LIMIT_INSTAGRAM_POSTS=1
+GTM_LIMIT_WHATSAPP_OUTREACH=10
+GTM_LIMIT_WHATSAPP_STATUS=1
+GTM_LIMIT_EMAIL_OUTREACH=15
+GTM_LIMIT_EXPERIMENTS=2
+GTM_LIMIT_COMPETITOR_RESEARCH=5
+
+# ─── Lead sourcing (discover -> LLM-qualify -> enrich) ──────────────────
+# Apollo: Settings -> Integrations -> API Keys -> Create -> scope the key to
+# "People Search" ONLY (nothing else needed; free plan is enough to start).
+APOLLO_API_KEY=
+# Hunter: hunter.io -> API -> API Key. Free plan = 50 credits/month, no card.
+HUNTER_API_KEY=
+# Comma-separated region codes to prospect in: IN, US, EU, AE
+PROSPECT_REGIONS=IN,US,EU,AE
+# Of everything discovered, how many may survive LLM qualification per day
+# (and therefore get enriched + queued for outreach). Kept deliberately
+# small — the scarce resource is learning signal, not lead volume.
+GTM_LIMIT_PROSPECTS_QUALIFIED_PER_DAY=20
+
+# ─── Optional: live web research (Research Agent has no browser of its own
+#     — without this it explicitly reports "no live source" rather than
+#     guessing). Get a key at tavily.com (has a free tier). ──────────────
+TAVILY_API_KEY=
+
+# ─── Optional: only set these once you have a REAL, official, compliant
+#     integration — until then these channels correctly stay Founder
+#     Actions (Level C) no matter what GTM_AUTONOMY_MODE says. There is no
+#     compliant personal-profile API for LinkedIn, so linkedin has no
+#     autonomous path at all — it's intentionally absent from this list. ─
+WHATSAPP_BUSINESS_TOKEN=
+INSTAGRAM_GRAPH_TOKEN=
+RESEND_API_KEY=
+GTM_EMAIL_AUTONOMOUS=false             # true only once you have a separate sending domain/reputation from the main app's transactional email
+
+# ─── Optional: real prospect data source — without this, prospecting is a
+#     deliberate no-op (never invents named people). ─────────────────────
+PROSPECT_DATA_SOURCE_API_KEY=
+
+# ─── Optional: cosmetic / used in generated content and links ──────────
+QUORUM_MARKETING_URL=https://quorumvault.org
+QUORUM_APP_URL=

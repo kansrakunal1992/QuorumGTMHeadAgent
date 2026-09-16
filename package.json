@@ -1,0 +1,30 @@
+{
+  "name": "quorum-gtm-head",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start -p $PORT -H 0.0.0.0",
+    "lint": "next lint",
+    "seed:memory": "tsx scripts/seed-memory.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.50.0",
+    "next": "15.2.8",
+    "openai": "^4.77.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "server-only": "^0.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "typescript": "^5",
+    "tsx": "^4.23.12"
+  }
+}
