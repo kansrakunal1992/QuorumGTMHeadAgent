@@ -13,6 +13,7 @@ import { research } from './researchAgent'
 import { generateIcpHypotheses, persistIcpHypotheses } from './icpAgent'
 import { draftContent } from './contentAgent'
 import { proposeExperiment, createExperiment } from './experimentAgent'
+import { proposeProductRecommendation } from './productAgent'
 import { runProspectingPipeline } from './prospectingAgent'
 import { queueOutreach } from './outreachAgent'
 import { tryConsume, getRemaining } from '../limits'
@@ -64,6 +65,26 @@ export async function runDailyCycle(): Promise<DailyCycleResult> {
   let actionsDone = 0
   let actionsSkipped = 0
   let founderActionsQueued = 0
+
+  // ── 1b. Product recommendation (independent of chosen GTM actions below —
+  //        cheap, and this is the only place in the system that surfaces a
+  //        product/pricing/UX opinion rather than a marketing action) ────
+  try {
+    const rec = await proposeProductRecommendation(bottleneck, reasoning, snapshot)
+    if (rec) {
+      const { error: recError } = await supabase.from('gtm_product_recommendations').insert(rec)
+      await logActivity({
+        action_type: 'product_recommendation', channel: 'internal', autonomy_level: LEVEL_C,
+        target: rec.category ?? null, reason: rec.rationale ?? '', hypothesis: null,
+        content: rec.recommendation ?? null,
+        status: recError ? 'failed' : 'queued_for_founder',
+        result: null, metric: null, cost: 0, confidence: rec.confidence ?? null,
+        follow_up: recError ? null : 'Founder to decide', experiment_id: null,
+      })
+    }
+  } catch (err) {
+    console.error('[gtmHead] product recommendation step failed', err)
+  }
 
   // research_only mode: diagnose + plan only, execute nothing further.
   if (mode === 'research_only') {

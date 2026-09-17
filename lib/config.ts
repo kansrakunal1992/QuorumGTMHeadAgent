@@ -76,3 +76,9 @@ export const QUORUM_APP_URL = process.env.QUORUM_APP_URL || 'https://app.quorumv
 // and outreach drafts are told about it so they can use it as a concrete
 // CTA instead of a vague "let's talk", where that fits the bottleneck.
 export const QUORUM_BOOKING_URL = process.env.QUORUM_BOOKING_URL || 'https://quorumvault.org/kunal'
+// Live, founder-led, FREE 30-minute session (no payment). Lower-friction
+// than the ₹299 session above — the default CTA for COLD first-touch
+// outreach, where asking a stranger for money is a bigger ask than asking
+// for 30 minutes. The paid session is better suited to warmer/re-engaged
+// prospects or as a natural next step after a good free call.
+export const QUORUM_FREE_SESSION_URL = process.env.QUORUM_FREE_SESSION_URL || 'https://quorumvault.org/kunal_elite'

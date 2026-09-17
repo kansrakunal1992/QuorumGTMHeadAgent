@@ -22,7 +22,7 @@
 import 'server-only'
 import { createServiceClient } from '../supabase'
 import { generateJson } from '../ai-client'
-import { getConnectedChannels, QUORUM_BOOKING_URL } from '../config'
+import { getConnectedChannels, QUORUM_BOOKING_URL, QUORUM_FREE_SESSION_URL } from '../config'
 import type { Prospect, Channel } from '../types'
 
 const SYSTEM_PROMPT = `You are the Outreach Agent for Quorum's GTM Head.
@@ -33,12 +33,18 @@ message for the given prospect and channel. Requirements:
 - Start a relevant conversation. Do not aggressively sell.
 - No manipulative language. No fabricated personal knowledge about the
   prospect beyond what's given in their record.
-- Smallest possible next step. There is a real, live, founder-led paid
-  Decision Session bookable today at ${QUORUM_BOOKING_URL} (₹299, one-time,
-  no login) — for a high-fit prospect this is a genuinely good concrete next
-  step (a real conversation with the founder, not a sales pitch), better
-  than a vague "worth a chat?". Use it where it fits naturally; don't force
-  it into a first-touch message that hasn't earned that ask yet.
+- Smallest possible next step. There are two real, live, founder-led CTAs —
+  pick the one that fits a COLD first touch to a stranger:
+  1. FREE 30-min session (default for cold/first-touch): ${QUORUM_FREE_SESSION_URL}
+     — no payment, lower trust barrier, the right ask for someone who has
+     never heard of Quorum before.
+  2. Paid ₹299 Decision Session: ${QUORUM_BOOKING_URL} — only offer this
+     instead of the free one if the prospect record shows they're already
+     warm (a reply, a referral, prior engagement) — asking a total stranger
+     for money in a first cold email is a bigger, colder ask than it needs
+     to be.
+  It's also fine to have NO link at all and just ask a genuine question —
+  not every message needs a CTA baked in on the first touch.
 Return ONLY JSON: { "message": string, "why_this_person": string,
 "why_this_message": string, "recommended_timing": string,
 "expected_objective": string }`

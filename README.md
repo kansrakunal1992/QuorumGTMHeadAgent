@@ -141,8 +141,7 @@ while testing.
 
 ## 4. The dashboard
 
-Two queues, kept deliberately separate because they're different kinds of
-work:
+Sections, kept deliberately separate because they're different kinds of work:
 
 - **📤 Post today** — broadcast content, grouped by channel: LinkedIn post,
   Instagram post, WhatsApp Status. Copy button for exact text, then Mark
@@ -151,13 +150,35 @@ work:
   grouped by channel: LinkedIn DM, WhatsApp message, Email. Shows who, why
   them, why this message, recommended timing. Copy button, then Mark sent /
   Reject / Not relevant / Snooze.
-- **What the agent did** — full activity log/audit trail for the day.
+- **🛠️ Product recommendations** — the one place the agent surfaces a
+  PRODUCT opinion (pricing/onboarding/UX/positioning/feature) rather than a
+  marketing action — things it can't execute itself, only flag. Stays empty
+  most days on purpose; it's told not to manufacture a recommendation just
+  to have one. Mark actioned / Dismiss.
+- **What the agent did** — full activity log/audit trail for the day, each
+  row timestamped (your browser's local time) so you can see roughly when
+  each action ran, not just that it ran.
 
-Every Reject / Not relevant tap feeds the Learning Agent, which writes a
-`founder_preference` row to `gtm_memory` — the agent's future qualification
-and content decisions are meant to shift based on this over time.
+Every Reject / Not relevant / Dismiss tap feeds the Learning Agent, which
+writes a `founder_preference` row to `gtm_memory` — the agent's future
+qualification and content decisions are meant to shift based on this over
+time.
 
-## 5. Architecture
+## 5. How the agent knows what users actually did
+
+The Analytics Agent (`lib/agents/analyticsAgent.ts`) reads the main app's
+real Supabase tables every cycle — not a guess, not cached, live each run:
+- `auth.users` → signups in the trailing 24h
+- `sessions` → decisions started (first_decision), and users with more than
+  one session (second_decision / repeat usage)
+- `decision_session_payments` + `mirror_access` → paid conversions
+- `mirror_access` (unexpired, elite/private tier) → active paying users
+
+That snapshot is what `diagnoseBottleneck()` reasons over to pick
+traffic/activation/second_decision/conversion/retention as today's
+priority — it's real product usage, not an assumption.
+
+## 6. Architecture
 
 ```
 app/
@@ -167,6 +188,7 @@ app/
   api/founder-actions/[id]/route.ts    Mark sent/rejected/etc -> feeds learning
   api/content-queue/[id]/route.ts      Mark posted/rejected/skipped
   api/prospects/import/route.ts        Paste-CSV import (Apollo Free-plan workaround)
+  api/product-recommendations/[id]/route.ts  Mark actioned/dismissed
 lib/
   supabase.ts       Service client — same Supabase project as the main app
   ai-client.ts      LLM abstraction (default: DeepSeek V4 Pro)
@@ -189,13 +211,14 @@ lib/
     prospectingAgent.ts     Discover -> qualify -> enrich pipeline
     outreachAgent.ts        Drafts targeted outreach, routes to Founder Action
     learningAgent.ts        Only agent that writes to gtm_memory
+    productAgent.ts         Surfaces product/pricing/UX recommendations (rare, on purpose)
 supabase/
   gtm_schema.sql    New tables — run once in the existing Supabase project
 scripts/
   seed-memory.ts    One-time bootstrap with real quorumvault.org facts
 ```
 
-## 6. Next passes worth prioritizing (not built yet)
+## 7. Next passes worth prioritizing (not built yet)
 
 1. Splitting `runDailyCycle()` into separate morning/midday/evening cron
    hits (each phase is already its own function — config change, not a

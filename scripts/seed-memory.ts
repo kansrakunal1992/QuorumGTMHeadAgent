@@ -102,10 +102,13 @@ const seeds: Array<{ category: string; content: string; confidence: number }> = 
   {
     category: 'channel',
     content:
-      'Live, founder-led paid Decision Session booking page at https://quorumvault.org/kunal — ₹299, one-time, ' +
-      'no login required, entered directly from the marketing site. This is a real, working conversion point ' +
-      '(not hypothetical) and a strong CTA for warm/high-fit prospects and conversion-focused content, ahead ' +
-      'of asking someone to sign up for the free tier cold.',
+      'Two distinct founder-led CTAs exist: (1) a FREE 30-minute live session at https://quorumvault.org/kunal_elite ' +
+      '("Book My Free Decision Session", no payment) and (2) a paid ₹299 one-time Decision Session at ' +
+      'https://quorumvault.org/kunal (no login required), both entered directly from the marketing site. These ' +
+      'are real, working conversion points (not hypothetical). The free session is the lower-friction, better ' +
+      'default CTA for cold first-touch outreach to strangers; the paid session suits warmer/re-engaged ' +
+      'prospects, or as a natural next step after a good free call — better than asking someone to sign up ' +
+      'for the free product tier cold.',
     confidence: 1,
   },
 ]

@@ -23,6 +23,7 @@ export type ActionType =
   | 'daily_plan'
   | 'end_of_day_report'
   | 'memory_update'
+  | 'product_recommendation'
 
 export type ActivityStatus = 'done' | 'failed' | 'skipped' | 'queued_for_founder'
 
@@ -221,4 +222,23 @@ export interface ContentQueueItem {
   source_evidence: string | null
   state: ContentState
   bottleneck: string | null
+}
+
+// ── Product recommendations ──────────────────────────────────────────────
+// Distinct from a GTM action: something the GTM Head believes the PRODUCT
+// itself (pricing, onboarding, UX, positioning, a feature) should change —
+// nothing the agent can execute itself, surfaced for the founder to decide.
+export type ProductRecCategory = 'pricing' | 'onboarding' | 'ux' | 'positioning' | 'feature' | 'other'
+export type ProductRecState = 'pending' | 'actioned' | 'dismissed'
+
+export interface ProductRecommendation {
+  id: string
+  created_at: string
+  date: string
+  category: ProductRecCategory
+  recommendation: string
+  rationale: string
+  evidence: string[]
+  confidence: number
+  state: ProductRecState
 }

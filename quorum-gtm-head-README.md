@@ -66,22 +66,40 @@ not get its own database.
 
 ## 2. Lead sourcing: cost and setup
 
-At default settings this costs **$0/month** to start:
+**Correction confirmed against a real account (Sept 2026):** Apollo's Free
+plan does NOT include the People Search API — it's excluded outright, even
+with a master key, not a scoping issue. This build works two ways
+depending on your plan:
 
-| Provider | Free allowance | Used for |
+| Provider | Free plan | What actually works free |
 |---|---|---|
-| Apollo | ~900–1,200 credits/year (People Search only) | Discovery |
-| Hunter | 50 credits/month, permanent | Email finding, qualified prospects only |
+| Apollo API search | ❌ Paid-plan-only (Basic, $49/mo+) | — |
+| Apollo web UI search | ✅ Included (~900–1,200 credits/year) | Manual search → CSV → dashboard import |
+| Hunter email-finder | ✅ 50 credits/month, permanent, real API | Automatic enrichment of qualified prospects |
+
+**Free-tier workflow (what you're on now):**
+1. Search in Apollo's web UI as normal (filters: title, location, etc).
+2. Export or copy the results as CSV.
+3. Dashboard → **🗂️ Import prospects** → paste the CSV → Import.
+4. From there everything is automatic again: Hunter fills in missing
+   emails, the Outreach Agent drafts messages, results feed the learning
+   loop — same as if the pipeline had found them itself.
+
+**If/when you upgrade Apollo to a paid plan:** no code changes needed —
+`lib/providers/apolloProvider.ts` already calls the real search endpoint;
+it 403s today because of the plan, not the code. The daily cycle's
+"prospecting" step picks discovery back up automatically once it stops
+403-ing.
 
 Setup:
-1. **Apollo** → Settings → Integrations → API Keys → Create a new key →
-   when it asks which endpoints the key can access, select **People Search**
-   only (nothing else is needed, and non-admin/free accounts often can't
-   select everything anyway — that's fine). Put the key in `APOLLO_API_KEY`.
+1. **Apollo** → Settings → Integrations → API Keys → Create a new key
+   (leave "Set as master key" on or off, doesn't matter on Free — the
+   search endpoints are locked either way). Put the key in `APOLLO_API_KEY`
+   now anyway, so it's ready the moment you upgrade.
 2. **Hunter** → hunter.io → API → API Key → put it in `HUNTER_API_KEY`.
 3. Set `PROSPECT_REGIONS` (default `IN,US,EU,AE`) and
    `GTM_LIMIT_PROSPECTS_QUALIFIED_PER_DAY` (default `20`, split evenly
-   across your regions).
+   across your regions) — these apply once automated search is active.
 
 **Geographic honesty:** Apollo's database skews US-strong; European
 coverage exists but is thinner on phone numbers, and UAE-specific depth is
@@ -95,6 +113,7 @@ defaults new-prospect outreach to **email** when available (most
 jurisdiction-neutral B2B first touch, easiest opt-out) rather than
 WhatsApp/phone, and every message is Founder-reviewed before sending
 regardless of region (Level C). Worth a real legal check before scaling
+
 volume in any one region.
 
 ## 3. Deploy
@@ -122,8 +141,7 @@ while testing.
 
 ## 4. The dashboard
 
-Two queues, kept deliberately separate because they're different kinds of
-work:
+Sections, kept deliberately separate because they're different kinds of work:
 
 - **📤 Post today** — broadcast content, grouped by channel: LinkedIn post,
   Instagram post, WhatsApp Status. Copy button for exact text, then Mark
@@ -132,13 +150,35 @@ work:
   grouped by channel: LinkedIn DM, WhatsApp message, Email. Shows who, why
   them, why this message, recommended timing. Copy button, then Mark sent /
   Reject / Not relevant / Snooze.
-- **What the agent did** — full activity log/audit trail for the day.
+- **🛠️ Product recommendations** — the one place the agent surfaces a
+  PRODUCT opinion (pricing/onboarding/UX/positioning/feature) rather than a
+  marketing action — things it can't execute itself, only flag. Stays empty
+  most days on purpose; it's told not to manufacture a recommendation just
+  to have one. Mark actioned / Dismiss.
+- **What the agent did** — full activity log/audit trail for the day, each
+  row timestamped (your browser's local time) so you can see roughly when
+  each action ran, not just that it ran.
 
-Every Reject / Not relevant tap feeds the Learning Agent, which writes a
-`founder_preference` row to `gtm_memory` — the agent's future qualification
-and content decisions are meant to shift based on this over time.
+Every Reject / Not relevant / Dismiss tap feeds the Learning Agent, which
+writes a `founder_preference` row to `gtm_memory` — the agent's future
+qualification and content decisions are meant to shift based on this over
+time.
 
-## 5. Architecture
+## 5. How the agent knows what users actually did
+
+The Analytics Agent (`lib/agents/analyticsAgent.ts`) reads the main app's
+real Supabase tables every cycle — not a guess, not cached, live each run:
+- `auth.users` → signups in the trailing 24h
+- `sessions` → decisions started (first_decision), and users with more than
+  one session (second_decision / repeat usage)
+- `decision_session_payments` + `mirror_access` → paid conversions
+- `mirror_access` (unexpired, elite/private tier) → active paying users
+
+That snapshot is what `diagnoseBottleneck()` reasons over to pick
+traffic/activation/second_decision/conversion/retention as today's
+priority — it's real product usage, not an assumption.
+
+## 6. Architecture
 
 ```
 app/
@@ -147,6 +187,8 @@ app/
   api/dashboard/route.ts               Dashboard data
   api/founder-actions/[id]/route.ts    Mark sent/rejected/etc -> feeds learning
   api/content-queue/[id]/route.ts      Mark posted/rejected/skipped
+  api/prospects/import/route.ts        Paste-CSV import (Apollo Free-plan workaround)
+  api/product-recommendations/[id]/route.ts  Mark actioned/dismissed
 lib/
   supabase.ts       Service client — same Supabase project as the main app
   ai-client.ts      LLM abstraction (default: DeepSeek V4 Pro)
@@ -169,13 +211,14 @@ lib/
     prospectingAgent.ts     Discover -> qualify -> enrich pipeline
     outreachAgent.ts        Drafts targeted outreach, routes to Founder Action
     learningAgent.ts        Only agent that writes to gtm_memory
+    productAgent.ts         Surfaces product/pricing/UX recommendations (rare, on purpose)
 supabase/
   gtm_schema.sql    New tables — run once in the existing Supabase project
 scripts/
   seed-memory.ts    One-time bootstrap with real quorumvault.org facts
 ```
 
-## 6. Next passes worth prioritizing (not built yet)
+## 7. Next passes worth prioritizing (not built yet)
 
 1. Splitting `runDailyCycle()` into separate morning/midday/evening cron
    hits (each phase is already its own function — config change, not a

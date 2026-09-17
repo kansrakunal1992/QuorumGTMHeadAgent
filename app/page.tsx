@@ -23,6 +23,9 @@ interface DashboardData {
     hook: string | null; body: string; cta: string | null
     uses_proof_point: boolean; source_evidence: string | null
   }>
+  product_recommendations_pending: Array<{
+    id: string; category: string; recommendation: string; rationale: string; confidence: number
+  }>
 }
 
 const FOUNDER_ACTION_LABELS: Record<string, string> = {
@@ -63,6 +66,16 @@ function groupBy<T, K extends string>(items: T[], key: (t: T) => K): Record<stri
   }, {} as Record<string, T[]>)
 }
 
+function formatTime(iso: string): string {
+  try {
+    return new Date(iso).toLocaleString(undefined, {
+      month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+    })
+  } catch {
+    return iso
+  }
+}
+
 export default function DashboardPage() {
   const [adminCode, setAdminCode] = useState('')
   const [entered, setEntered] = useState(false)
@@ -89,6 +102,15 @@ export default function DashboardPage() {
 
   const actContent = async (id: string, state: string) => {
     await fetch(`/api/content-queue/${id}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${adminCode}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ state }),
+    })
+    load(adminCode)
+  }
+
+  const actRec = async (id: string, state: string) => {
+    await fetch(`/api/product-recommendations/${id}`, {
       method: 'PATCH',
       headers: { Authorization: `Bearer ${adminCode}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ state }),
@@ -150,6 +172,7 @@ export default function DashboardPage() {
         <div><div className="stat-label">Actions logged</div><div className="stat-value">{data.activity.length}</div></div>
         <div><div className="stat-label">To post</div><div className="stat-value">{data.content_queue_pending.length}</div></div>
         <div><div className="stat-label">To send</div><div className="stat-value">{data.founder_actions_pending.length}</div></div>
+        <div><div className="stat-label">Product recs</div><div className="stat-value">{data.product_recommendations_pending.length}</div></div>
       </div>
       {data.plan && <p className="muted card">{data.plan.reasoning_summary}</p>}
 
@@ -222,11 +245,27 @@ export default function DashboardPage() {
         ))
       )}
 
+      {/* Product/pricing/UX opinions — not something the agent can execute itself */}
+      <h2>🛠️ Product recommendations</h2>
+      {data.product_recommendations_pending.length === 0 && <p className="muted">Nothing flagged right now.</p>}
+      {data.product_recommendations_pending.map((rec) => (
+        <div className="card" key={rec.id}>
+          <strong>{rec.category}</strong> <span className="muted">· confidence {Math.round(rec.confidence * 100)}%</span>
+          <p>{rec.recommendation}</p>
+          <p className="muted">Why: {rec.rationale}</p>
+          <div>
+            <button onClick={() => actRec(rec.id, 'actioned')}>Mark actioned</button>
+            <button className="secondary" onClick={() => actRec(rec.id, 'dismissed')}>Dismiss</button>
+          </div>
+        </div>
+      ))}
+
       <h2>What the agent did</h2>
       <div className="card">
         {data.activity.length === 0 && <p className="muted">No activity logged yet today.</p>}
         {data.activity.map((a) => (
           <div className="activity-row" key={a.id}>
+            <span className="muted">{formatTime(a.timestamp)}</span>{' '}
             <span className={`pill ${a.status}`}>{a.status}</span>{' '}
             <strong>{a.action_type}</strong>
             {a.target && <span className="muted"> · {a.target}</span>}
