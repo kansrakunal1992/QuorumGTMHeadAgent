@@ -165,6 +165,7 @@ export interface FounderAction {
   target_name: string
   target_destination: string // phone / URL / email / handle
   exact_message: string
+  subject: string | null // email only
   why_this_person: string
   why_this_message: string
   recommended_timing: string

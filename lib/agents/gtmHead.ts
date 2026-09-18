@@ -248,58 +248,92 @@ export async function runDailyCycle(): Promise<DailyCycleResult> {
           break
         }
         case 'outreach': {
-          const check = await tryConsume('outreach_messages')
-          if (!check.allowed) {
-            actionsSkipped++
-            await logActivity({
-              action_type: 'outreach_draft', channel: 'internal', autonomy_level: LEVEL_C,
-              target: null, reason: 'Daily outreach_messages cap reached', hypothesis: null,
-              content: null, status: 'skipped', result: null, metric: null, cost: 0,
-              confidence: null, follow_up: null, experiment_id: null,
-            })
-            break
-          }
+          // Process as many prospects as the remaining daily cap allows in
+          // this one cycle (previously this only ever handled one prospect
+          // per day regardless of the cap — fixed so autonomous sending is
+          // actually useful).
+          let sentThisRun = 0
+          for (;;) {
+            const check = await tryConsume('outreach_messages')
+            if (!check.allowed) {
+              if (sentThisRun === 0) {
+                actionsSkipped++
+                await logActivity({
+                  action_type: 'outreach_draft', channel: 'internal', autonomy_level: LEVEL_C,
+                  target: null, reason: 'Daily outreach_messages cap reached', hypothesis: null,
+                  content: null, status: 'skipped', result: null, metric: null, cost: 0,
+                  confidence: null, follow_up: null, experiment_id: null,
+                })
+              }
+              break
+            }
 
-          const { data: candidates } = await supabase
-            .from('gtm_prospects')
-            .select('*')
-            .eq('status', 'new')
-            .order('fit_score', { ascending: false })
-            .limit(1)
+            const { data: candidates } = await supabase
+              .from('gtm_prospects')
+              .select('*')
+              .eq('status', 'new')
+              .order('fit_score', { ascending: false })
+              .limit(1)
 
-          const prospect = candidates?.[0]
-          if (!prospect) {
-            actionsSkipped++
-            await logActivity({
-              action_type: 'outreach_draft', channel: 'internal', autonomy_level: LEVEL_C,
-              target: null, reason: 'No un-contacted prospect on file yet', hypothesis: null,
-              content: null, status: 'skipped', result: null, metric: null, cost: 0,
-              confidence: null, follow_up: 'Run prospecting first', experiment_id: null,
-            })
-            break
-          }
+            const prospect = candidates?.[0]
+            if (!prospect) {
+              if (sentThisRun === 0) {
+                actionsSkipped++
+                await logActivity({
+                  action_type: 'outreach_draft', channel: 'internal', autonomy_level: LEVEL_C,
+                  target: null, reason: 'No un-contacted prospect on file yet', hypothesis: null,
+                  content: null, status: 'skipped', result: null, metric: null, cost: 0,
+                  confidence: null, follow_up: 'Run prospecting first', experiment_id: null,
+                })
+              }
+              break
+            }
 
-          // Prefer email (safest, most jurisdiction-neutral for cold first
-          // touch) > LinkedIn > WhatsApp, based on what's actually on file.
-          const channel: Channel = prospect.email ? 'email' : prospect.linkedin_url ? 'linkedin' : prospect.whatsapp ? 'whatsapp' : 'email'
-          if (channel === 'email' && !prospect.email) {
-            actionsSkipped++
-            break
-          }
+            // Prefer email (safest, most jurisdiction-neutral for cold
+            // first touch, and the only channel that can actually be sent
+            // autonomously right now) > LinkedIn > WhatsApp.
+            const channel: Channel = prospect.email ? 'email' : prospect.linkedin_url ? 'linkedin' : prospect.whatsapp ? 'whatsapp' : 'email'
+            if (channel === 'email' && !prospect.email) {
+              // No usable contact info at all — mark so it stops recurring in this loop.
+              await supabase.from('gtm_prospects').update({ status: 'not_relevant', notes: 'No email/LinkedIn/WhatsApp on file' }).eq('id', prospect.id)
+              continue
+            }
 
-          const queued = await queueOutreach(prospect, channel as 'linkedin' | 'whatsapp' | 'email' | 'instagram')
-          if (queued) {
-            await supabase.from('gtm_prospects').update({ status: 'queued', last_contacted_at: new Date().toISOString() }).eq('id', prospect.id)
-            founderActionsQueued++
+            const queued = await queueOutreach(prospect, channel as 'linkedin' | 'whatsapp' | 'email' | 'instagram')
+            if (!queued) {
+              await supabase.from('gtm_prospects').update({ status: 'not_relevant' }).eq('id', prospect.id)
+              continue
+            }
+
+            const newStatus = queued.mode === 'autonomous_sent' ? 'contacted' : 'queued'
+            await supabase.from('gtm_prospects').update({ status: newStatus, last_contacted_at: new Date().toISOString() }).eq('id', prospect.id)
             actionsDone++
-            await logActivity({
-              action_type: 'outreach_draft', channel, autonomy_level: LEVEL_C,
-              target: prospect.name, reason: action.reasoning, hypothesis: null,
-              content: null, status: 'queued_for_founder', result: null, metric: null, cost: 0,
-              confidence: prospect.fit_score, follow_up: 'Founder to send', experiment_id: null,
-            })
-          } else {
-            actionsSkipped++
+            sentThisRun++
+            if (queued.mode !== 'autonomous_sent') founderActionsQueued++
+
+            if (queued.mode === 'autonomous_sent') {
+              await logActivity({
+                action_type: 'outreach_draft', channel, autonomy_level: 'B_AUTONOMOUS_CAPPED',
+                target: prospect.name, reason: action.reasoning, hypothesis: null,
+                content: null, status: 'done',
+                result: `Sent via Resend, scheduled ${queued.scheduledAt}`, metric: null, cost: 0,
+                confidence: prospect.fit_score, follow_up: null, experiment_id: null,
+              })
+            } else if (queued.mode === 'autonomous_failed') {
+              await logActivity({
+                action_type: 'outreach_draft', channel, autonomy_level: LEVEL_C,
+                target: prospect.name, reason: `Autonomous send failed (${queued.error}) — queued for founder instead`, hypothesis: null,
+                content: null, status: 'queued_for_founder', result: null, metric: null, cost: 0,
+                confidence: prospect.fit_score, follow_up: 'Founder to send', experiment_id: null,
+              })
+            } else {
+              await logActivity({
+                action_type: 'outreach_draft', channel, autonomy_level: LEVEL_C,
+                target: prospect.name, reason: action.reasoning, hypothesis: null,
+                content: null, status: 'queued_for_founder', result: null, metric: null, cost: 0,
+                confidence: prospect.fit_score, follow_up: 'Founder to send', experiment_id: null,
+              })
+            }
           }
           break
         }

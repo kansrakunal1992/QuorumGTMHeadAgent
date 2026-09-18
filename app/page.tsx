@@ -15,7 +15,7 @@ interface DashboardData {
   }>
   founder_actions_pending: Array<{
     id: string; channel: 'linkedin' | 'whatsapp' | 'email' | 'instagram'; target_name: string; target_destination: string
-    exact_message: string; why_this_person: string; why_this_message: string
+    exact_message: string; subject: string | null; why_this_person: string; why_this_message: string
     recommended_timing: string; expected_objective: string
   }>
   content_queue_pending: Array<{
@@ -231,11 +231,12 @@ export default function DashboardPage() {
           <div className="card" key={fa.id}>
             <strong>{FOUNDER_ACTION_LABELS[channel]}</strong> → {fa.target_name}{' '}
             <span className="muted">({fa.target_destination})</span>
+            {fa.subject && <p style={{ margin: '4px 0 0' }}><strong>Subject:</strong> {fa.subject}</p>}
             <p style={{ whiteSpace: 'pre-wrap' }}>{fa.exact_message}</p>
             <p className="muted">Why: {fa.why_this_person}</p>
             <p className="muted">Timing: {fa.recommended_timing} · Goal: {fa.expected_objective}</p>
             <div>
-              <CopyButton text={fa.exact_message} />
+              <CopyButton text={fa.subject ? `Subject: ${fa.subject}\n\n${fa.exact_message}` : fa.exact_message} />
               <button onClick={() => actFounder(fa.id, 'sent')}>Mark sent</button>
               <button className="secondary" onClick={() => actFounder(fa.id, 'rejected')}>Reject</button>
               <button className="secondary" onClick={() => actFounder(fa.id, 'not_relevant')}>Not relevant</button>
