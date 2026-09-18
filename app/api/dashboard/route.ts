@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
   const supabase = createServiceClient()
   const today = new Date().toISOString().slice(0, 10)
 
-  const [{ data: plan }, { data: report }, { data: activity }, { data: founderActions }, { data: contentQueue }, { data: productRecs }, { data: usage }, { data: attributed }] =
+  const [{ data: plan }, { data: report }, { data: activity }, { data: founderActions }, { data: contentQueue }, { data: productRecs }, { data: usage }, { data: attributed }, { data: nurtured }] =
     await Promise.all([
       supabase.from('gtm_daily_plans').select('*').eq('date', today).maybeSingle(),
       supabase.from('gtm_daily_reports').select('*').eq('date', today).maybeSingle(),
@@ -23,9 +23,10 @@ export async function GET(req: NextRequest) {
       supabase.from('gtm_content_queue').select('*').eq('state', 'pending').order('created_at', { ascending: false }),
       supabase.from('gtm_product_recommendations').select('*').eq('state', 'pending').order('created_at', { ascending: false }),
       supabase.from('gtm_daily_usage').select('*').eq('date', today),
-      // Attribution: how many outreach targets actually did something real.
-      // Not scoped to "today" — this is lifetime-to-date on purpose.
-      supabase.from('gtm_prospects').select('card_visited_at, paid_at, paid_amount_inr, signed_up_at'),
+      // Attribution: how many outreach/nurture targets actually did something
+      // real. Not scoped to "today" — this is lifetime-to-date on purpose.
+      supabase.from('gtm_prospects').select('card_visited_at, paid_at, paid_amount_inr, signed_up_at, free_session_booked_at'),
+      supabase.from('gtm_nurture_log').select('converted_at, paid_amount_inr'),
     ])
 
   const attribution = {
@@ -33,7 +34,12 @@ export async function GET(req: NextRequest) {
     visited: (attributed ?? []).filter((p) => p.card_visited_at).length,
     signed_up: (attributed ?? []).filter((p) => p.signed_up_at).length,
     paid: (attributed ?? []).filter((p) => p.paid_at).length,
-    paid_amount_inr: (attributed ?? []).reduce((sum, p) => sum + (p.paid_amount_inr ?? 0), 0),
+    free_session_booked: (attributed ?? []).filter((p) => p.free_session_booked_at).length,
+    paid_amount_inr:
+      (attributed ?? []).reduce((sum, p) => sum + (p.paid_amount_inr ?? 0), 0) +
+      (nurtured ?? []).reduce((sum, n) => sum + (n.paid_amount_inr ?? 0), 0),
+    nurture_sent: (nurtured ?? []).length,
+    nurture_converted: (nurtured ?? []).filter((n) => n.converted_at).length,
   }
 
   return NextResponse.json({

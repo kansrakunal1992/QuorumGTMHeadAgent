@@ -16,6 +16,7 @@ import { proposeExperiment, createExperiment } from './experimentAgent'
 import { proposeProductRecommendation } from './productAgent'
 import { runAttributionPass } from './attributionAgent'
 import { runWeeklyDigest } from './digestAgent'
+import { runNurturePass } from './nurtureAgent'
 import { runProspectingPipeline } from './prospectingAgent'
 import { queueOutreach } from './outreachAgent'
 import { tryConsume, getRemaining } from '../limits'
@@ -95,12 +96,14 @@ export async function runDailyCycle(): Promise<DailyCycleResult> {
   let attribution
   try {
     attribution = await runAttributionPass()
-    if (attribution.card_visits + attribution.paid_conversions + attribution.signups > 0) {
+    const totalNew = attribution.card_visits + attribution.paid_conversions + attribution.signups + attribution.free_session_bookings + attribution.nurture_conversions
+    if (totalNew > 0) {
       await logActivity({
         action_type: 'attribution', channel: 'internal', autonomy_level: LEVEL_A,
         target: null,
-        reason: `${attribution.card_visits} card visit(s), ${attribution.paid_conversions} paid conversion(s) ` +
-          `(₹${attribution.paid_amount_inr}), ${attribution.signups} signup(s) traced to GTM Head outreach`,
+        reason: `${attribution.card_visits} card visit(s), ${attribution.paid_conversions} cold paid conversion(s), ` +
+          `${attribution.nurture_conversions} nurture conversion(s) (₹${attribution.paid_amount_inr} total), ` +
+          `${attribution.signups} signup(s), ${attribution.free_session_bookings} free-session booking(s)`,
         hypothesis: null, content: null, status: 'done', result: null, metric: null, cost: 0,
         confidence: 1, follow_up: null, experiment_id: null,
       })
@@ -109,7 +112,31 @@ export async function runDailyCycle(): Promise<DailyCycleResult> {
     console.error('[gtmHead] attribution pass failed', err)
   }
 
-  // ── 1d. Weekly digest — Mondays only, reads the past week's manually
+  // ── 1d. Existing-user nurture (top pick #1) — always attempted, capped
+  //        by GTM_LIMIT_NURTURE_EMAILS. Not gated behind autonomy_mode the
+  //        way cold outreach candidates are (LLM-scored, maybe-skipped) —
+  //        this is a narrow, safe, one-time-per-user email, so it runs
+  //        every cycle rather than being left to chance. ──────────────
+  try {
+    const { remaining: remainingNurture } = await getRemaining('nurture_emails')
+    if (remainingNurture > 0) {
+      const nurtureResult = await runNurturePass(remainingNurture)
+      if (nurtureResult.sent > 0) {
+        await tryConsume('nurture_emails', nurtureResult.sent)
+        await logActivity({
+          action_type: 'nurture', channel: 'email', autonomy_level: 'B_AUTONOMOUS_CAPPED',
+          target: null, reason: `${nurtureResult.candidates} eligible existing user(s) found (1-2 sessions, no Mirror, not recently nudged)`,
+          hypothesis: null, content: null, status: 'done',
+          result: `${nurtureResult.sent} nurture email(s) sent`, metric: null, cost: 0,
+          confidence: null, follow_up: null, experiment_id: null,
+        })
+      }
+    }
+  } catch (err) {
+    console.error('[gtmHead] nurture pass failed', err)
+  }
+
+  // ── 1e. Weekly digest — Mondays only, reads the past week's manually
   //        logged content performance + funnel movement, writes ONE
   //        learning entry. Piggybacks on the daily cron rather than
   //        needing a second Railway cron job. ──────────────────────────

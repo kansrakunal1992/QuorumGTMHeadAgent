@@ -27,7 +27,8 @@ interface DashboardData {
     id: string; category: string; recommendation: string; rationale: string; confidence: number
   }>
   attribution: {
-    total_contacted: number; visited: number; signed_up: number; paid: number; paid_amount_inr: number
+    total_contacted: number; visited: number; signed_up: number; paid: number
+    free_session_booked: number; paid_amount_inr: number; nurture_sent: number; nurture_converted: number
   }
 }
 
@@ -212,9 +213,13 @@ export default function DashboardPage() {
         <div><div className="stat-label">Contacted</div><div className="stat-value">{data.attribution.total_contacted}</div></div>
         <div><div className="stat-label">Visited a card</div><div className="stat-value">{data.attribution.visited}</div></div>
         <div><div className="stat-label">Signed up (free)</div><div className="stat-value">{data.attribution.signed_up}</div></div>
+        <div><div className="stat-label">Booked free session</div><div className="stat-value">{data.attribution.free_session_booked}</div></div>
         <div><div className="stat-label">Paid</div><div className="stat-value">{data.attribution.paid}</div></div>
         <div><div className="stat-label">Revenue</div><div className="stat-value">₹{data.attribution.paid_amount_inr}</div></div>
       </div>
+      <p className="muted card" style={{ marginTop: -8 }}>
+        Existing-user nurture: {data.attribution.nurture_sent} sent, {data.attribution.nurture_converted} converted.
+      </p>
 
       {/* Free-plan workaround: Apollo's search API is paid-only, so search
           in Apollo's UI and paste the CSV export here — everything after

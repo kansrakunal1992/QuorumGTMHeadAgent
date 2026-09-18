@@ -25,6 +25,7 @@ export type ActionType =
   | 'memory_update'
   | 'product_recommendation'
   | 'attribution'
+  | 'nurture'
 
 export type ActivityStatus = 'done' | 'failed' | 'skipped' | 'queued_for_founder'
 
@@ -201,6 +202,7 @@ export interface DailyLimits {
   email_outreach: number
   experiments: number
   competitor_research: number
+  nurture_emails: number
 }
 
 // ── Lead sourcing ──────────────────────────────────────────────────────
@@ -263,4 +265,6 @@ export interface AttributionSummary {
   paid_conversions: number  // decision_session_payments status='paid', utm_source='gtm_head', matched to a prospect
   paid_amount_inr: number
   signups: number           // user_profiles rows with signup_utm_source='gtm_head', matched to a prospect
+  free_session_bookings: number // Google Calendar events matched by email to a prospect
+  nurture_conversions: number   // decision_session_payments matched to a nurtured EXISTING user (utm_source='gtm_head_nurture')
 }

@@ -40,6 +40,9 @@ export function getDailyLimits(): DailyLimits {
     email_outreach: envInt('GTM_LIMIT_EMAIL_OUTREACH', 15),
     experiments: envInt('GTM_LIMIT_EXPERIMENTS', 2),
     competitor_research: envInt('GTM_LIMIT_COMPETITOR_RESEARCH', 5),
+    // Existing-user nurture (top pick #1) — deliberately small. One-time
+    // per user, ever; this just caps how many go out on any single day.
+    nurture_emails: envInt('GTM_LIMIT_NURTURE_EMAILS', 5),
   }
 }
 
