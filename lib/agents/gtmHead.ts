@@ -14,6 +14,8 @@ import { generateIcpHypotheses, persistIcpHypotheses } from './icpAgent'
 import { draftContent } from './contentAgent'
 import { proposeExperiment, createExperiment } from './experimentAgent'
 import { proposeProductRecommendation } from './productAgent'
+import { runAttributionPass } from './attributionAgent'
+import { runWeeklyDigest } from './digestAgent'
 import { runProspectingPipeline } from './prospectingAgent'
 import { queueOutreach } from './outreachAgent'
 import { tryConsume, getRemaining } from '../limits'
@@ -84,6 +86,47 @@ export async function runDailyCycle(): Promise<DailyCycleResult> {
     }
   } catch (err) {
     console.error('[gtmHead] product recommendation step failed', err)
+  }
+
+  // ── 1c. Attribution pass — always runs, independent of chosen actions.
+  //        Cheap (a handful of reads/writes, no LLM call) and this is the
+  //        only place real conversion data ever gets checked against what
+  //        this project's own outreach actually drove. ──────────────────
+  let attribution
+  try {
+    attribution = await runAttributionPass()
+    if (attribution.card_visits + attribution.paid_conversions + attribution.signups > 0) {
+      await logActivity({
+        action_type: 'attribution', channel: 'internal', autonomy_level: LEVEL_A,
+        target: null,
+        reason: `${attribution.card_visits} card visit(s), ${attribution.paid_conversions} paid conversion(s) ` +
+          `(₹${attribution.paid_amount_inr}), ${attribution.signups} signup(s) traced to GTM Head outreach`,
+        hypothesis: null, content: null, status: 'done', result: null, metric: null, cost: 0,
+        confidence: 1, follow_up: null, experiment_id: null,
+      })
+    }
+  } catch (err) {
+    console.error('[gtmHead] attribution pass failed', err)
+  }
+
+  // ── 1d. Weekly digest — Mondays only, reads the past week's manually
+  //        logged content performance + funnel movement, writes ONE
+  //        learning entry. Piggybacks on the daily cron rather than
+  //        needing a second Railway cron job. ──────────────────────────
+  if (new Date().getUTCDay() === 1) {
+    try {
+      const digest = await runWeeklyDigest()
+      if (digest) {
+        await logActivity({
+          action_type: 'memory_update', channel: 'internal', autonomy_level: LEVEL_A,
+          target: 'weekly_digest', reason: digest, hypothesis: null, content: null,
+          status: 'done', result: null, metric: null, cost: 0, confidence: null,
+          follow_up: null, experiment_id: null,
+        })
+      }
+    } catch (err) {
+      console.error('[gtmHead] weekly digest failed', err)
+    }
   }
 
   // research_only mode: diagnose + plan only, execute nothing further.

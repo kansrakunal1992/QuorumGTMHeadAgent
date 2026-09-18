@@ -26,6 +26,14 @@ interface DashboardData {
   product_recommendations_pending: Array<{
     id: string; category: string; recommendation: string; rationale: string; confidence: number
   }>
+  attribution: {
+    total_contacted: number; visited: number; signed_up: number; paid: number; paid_amount_inr: number
+  }
+}
+
+interface PerfItem {
+  id: string; channel: string; category: string; hook: string | null; body: string; created_at: string
+  latest_performance: { impressions: number | null; engagement: number | null; link_clicks: number | null; as_of_date: string } | null
 }
 
 const FOUNDER_ACTION_LABELS: Record<string, string> = {
@@ -81,12 +89,16 @@ export default function DashboardPage() {
   const [entered, setEntered] = useState(false)
   const [data, setData] = useState<DashboardData | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [perf, setPerf] = useState<PerfItem[]>([])
+  const [perfDrafts, setPerfDrafts] = useState<Record<string, { impressions: string; engagement: string; link_clicks: string }>>({})
 
   const load = useCallback(async (code: string) => {
     setError(null)
     const res = await fetch('/api/dashboard', { headers: { Authorization: `Bearer ${code}` } })
     if (!res.ok) { setError('Unauthorized or server error.'); return }
     setData(await res.json())
+    const perfRes = await fetch('/api/content-performance', { headers: { Authorization: `Bearer ${code}` } })
+    if (perfRes.ok) setPerf((await perfRes.json()).items)
   }, [])
 
   useEffect(() => { if (entered) load(adminCode) }, [entered, adminCode, load])
@@ -134,6 +146,21 @@ export default function DashboardPage() {
     setImportCsv('')
   }
 
+  const savePerf = async (contentId: string) => {
+    const draft = perfDrafts[contentId] || { impressions: '', engagement: '', link_clicks: '' }
+    await fetch('/api/content-performance', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${adminCode}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        content_id: contentId,
+        impressions: draft.impressions ? Number(draft.impressions) : null,
+        engagement: draft.engagement ? Number(draft.engagement) : null,
+        link_clicks: draft.link_clicks ? Number(draft.link_clicks) : null,
+      }),
+    })
+    load(adminCode)
+  }
+
   if (!entered) {
     return (
       <div className="container">
@@ -175,6 +202,19 @@ export default function DashboardPage() {
         <div><div className="stat-label">Product recs</div><div className="stat-value">{data.product_recommendations_pending.length}</div></div>
       </div>
       {data.plan && <p className="muted card">{data.plan.reasoning_summary}</p>}
+
+      {/* Real outcomes, not fit-scores — lifetime-to-date, not just today.
+          /kunal_elite (free session) has no equivalent to "paid" — a
+          booking there only exists in Kunal's Google Calendar, invisible
+          here until a Calendar API integration exists. */}
+      <h2>🎯 Attribution (lifetime)</h2>
+      <div className="card grid">
+        <div><div className="stat-label">Contacted</div><div className="stat-value">{data.attribution.total_contacted}</div></div>
+        <div><div className="stat-label">Visited a card</div><div className="stat-value">{data.attribution.visited}</div></div>
+        <div><div className="stat-label">Signed up (free)</div><div className="stat-value">{data.attribution.signed_up}</div></div>
+        <div><div className="stat-label">Paid</div><div className="stat-value">{data.attribution.paid}</div></div>
+        <div><div className="stat-label">Revenue</div><div className="stat-value">₹{data.attribution.paid_amount_inr}</div></div>
+      </div>
 
       {/* Free-plan workaround: Apollo's search API is paid-only, so search
           in Apollo's UI and paste the CSV export here — everything after
@@ -260,6 +300,48 @@ export default function DashboardPage() {
           </div>
         </div>
       ))}
+
+      {/* Manual stats log — no API access exists for LinkedIn/Instagram/
+          WhatsApp Status, so impressions/engagement/clicks are typed in
+          here against each posted item. Feeds the weekly digest. */}
+      <h2>📊 Performance log</h2>
+      {perf.length === 0 && <p className="muted">Nothing posted in the last 30 days yet.</p>}
+      {perf.map((item) => {
+        const draft = perfDrafts[item.id] || {
+          impressions: item.latest_performance?.impressions?.toString() ?? '',
+          engagement: item.latest_performance?.engagement?.toString() ?? '',
+          link_clicks: item.latest_performance?.link_clicks?.toString() ?? '',
+        }
+        const setField = (field: 'impressions' | 'engagement' | 'link_clicks', value: string) =>
+          setPerfDrafts((prev) => ({ ...prev, [item.id]: { ...draft, ...prev[item.id], [field]: value } }))
+        return (
+          <div className="card" key={item.id}>
+            <strong>{item.channel.replace(/_/g, ' ')}</strong>{' '}
+            <span className="muted">· {item.category.replace(/_/g, ' ')} · posted {formatTime(item.created_at)}</span>
+            <p className="muted" style={{ margin: '4px 0' }}>{(item.hook || item.body).slice(0, 120)}…</p>
+            <div className="grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+              <div>
+                <div className="stat-label">Impressions</div>
+                <input value={draft.impressions} onChange={(e) => setField('impressions', e.target.value)} inputMode="numeric" />
+              </div>
+              <div>
+                <div className="stat-label">Engagement</div>
+                <input value={draft.engagement} onChange={(e) => setField('engagement', e.target.value)} inputMode="numeric" />
+              </div>
+              <div>
+                <div className="stat-label">Link clicks</div>
+                <input value={draft.link_clicks} onChange={(e) => setField('link_clicks', e.target.value)} inputMode="numeric" />
+              </div>
+            </div>
+            {item.latest_performance && (
+              <p className="muted" style={{ marginTop: 6 }}>Last logged: {item.latest_performance.as_of_date}</p>
+            )}
+            <div style={{ marginTop: 8 }}>
+              <button onClick={() => savePerf(item.id)}>Save</button>
+            </div>
+          </div>
+        )
+      })}
 
       <h2>What the agent did</h2>
       <div className="card">

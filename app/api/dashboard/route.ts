@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
   const supabase = createServiceClient()
   const today = new Date().toISOString().slice(0, 10)
 
-  const [{ data: plan }, { data: report }, { data: activity }, { data: founderActions }, { data: contentQueue }, { data: productRecs }, { data: usage }] =
+  const [{ data: plan }, { data: report }, { data: activity }, { data: founderActions }, { data: contentQueue }, { data: productRecs }, { data: usage }, { data: attributed }] =
     await Promise.all([
       supabase.from('gtm_daily_plans').select('*').eq('date', today).maybeSingle(),
       supabase.from('gtm_daily_reports').select('*').eq('date', today).maybeSingle(),
@@ -23,7 +23,18 @@ export async function GET(req: NextRequest) {
       supabase.from('gtm_content_queue').select('*').eq('state', 'pending').order('created_at', { ascending: false }),
       supabase.from('gtm_product_recommendations').select('*').eq('state', 'pending').order('created_at', { ascending: false }),
       supabase.from('gtm_daily_usage').select('*').eq('date', today),
+      // Attribution: how many outreach targets actually did something real.
+      // Not scoped to "today" — this is lifetime-to-date on purpose.
+      supabase.from('gtm_prospects').select('card_visited_at, paid_at, paid_amount_inr, signed_up_at'),
     ])
+
+  const attribution = {
+    total_contacted: (attributed ?? []).length,
+    visited: (attributed ?? []).filter((p) => p.card_visited_at).length,
+    signed_up: (attributed ?? []).filter((p) => p.signed_up_at).length,
+    paid: (attributed ?? []).filter((p) => p.paid_at).length,
+    paid_amount_inr: (attributed ?? []).reduce((sum, p) => sum + (p.paid_amount_inr ?? 0), 0),
+  }
 
   return NextResponse.json({
     date: today,
@@ -36,5 +47,6 @@ export async function GET(req: NextRequest) {
     founder_actions_pending: founderActions ?? [],
     content_queue_pending: contentQueue ?? [],
     product_recommendations_pending: productRecs ?? [],
+    attribution,
   })
 }

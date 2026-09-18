@@ -68,13 +68,20 @@ interface OutreachDraft {
 }
 
 /** Adds UTM + a per-prospect id so link clicks/bookings can (eventually) be attributed back to this outreach. */
+// Matches exactly what card-kunal.html / card-kunal-elite.html actually
+// read and forward (utm_source, utm_campaign, utm_content — confirmed by
+// reading that code directly): the paid session's create-order route
+// persists all three straight into decision_session_payments, and both
+// cards now also log every visit tagged with these three into
+// card_visit_log (see website's server.js /api/card-visit). The prospect
+// id goes in utm_content — there is no separate "pid" param on either
+// page, so anything else there would silently be dropped.
 function trackedCtaUrl(ctaType: OutreachDraft['cta_type'], prospect: Prospect, channel: Channel): string {
   const base = ctaType === 'paid_session' ? QUORUM_BOOKING_URL : QUORUM_FREE_SESSION_URL
   const url = new URL(base)
   url.searchParams.set('utm_source', 'gtm_head')
-  url.searchParams.set('utm_medium', channel)
-  url.searchParams.set('utm_campaign', 'cold_outreach')
-  url.searchParams.set('pid', prospect.id)
+  url.searchParams.set('utm_campaign', `cold_outreach_${channel}`)
+  url.searchParams.set('utm_content', prospect.id)
   return url.toString()
 }
 

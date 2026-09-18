@@ -24,6 +24,7 @@ export type ActionType =
   | 'end_of_day_report'
   | 'memory_update'
   | 'product_recommendation'
+  | 'attribution'
 
 export type ActivityStatus = 'done' | 'failed' | 'skipped' | 'queued_for_founder'
 
@@ -242,4 +243,24 @@ export interface ProductRecommendation {
   evidence: string[]
   confidence: number
   state: ProductRecState
+}
+
+// ── Content performance (manual log) ─────────────────────────────────────
+export interface ContentPerformance {
+  id: string
+  content_id: string
+  as_of_date: string
+  impressions: number | null
+  engagement: number | null
+  link_clicks: number | null
+  notes: string | null
+  created_at: string
+}
+
+// ── Attribution summary (Attribution Agent's daily output) ──────────────
+export interface AttributionSummary {
+  card_visits: number       // new card_visit_log rows with utm_source='gtm_head' since last run
+  paid_conversions: number  // decision_session_payments status='paid', utm_source='gtm_head', matched to a prospect
+  paid_amount_inr: number
+  signups: number           // user_profiles rows with signup_utm_source='gtm_head', matched to a prospect
 }
