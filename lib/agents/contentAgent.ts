@@ -74,7 +74,7 @@ export async function draftContent(bottleneck: FunnelBottleneck): Promise<Conten
   const { data: proofPoints } = await supabase
     .from('gtm_memory')
     .select('content, source, evidence')
-    .in('category', ['customer', 'product', 'positioning'])
+    .in('category', ['customer', 'product', 'positioning', 'messaging'])
     .eq('status', 'active')
     .order('confidence', { ascending: false })
     .limit(20)

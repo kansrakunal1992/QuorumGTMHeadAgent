@@ -88,7 +88,7 @@ export async function runProspectingPipeline(qualifiedBudget: number): Promise<P
   }
 
   const regions = getProspectRegions()
-  const { titles, keywords } = await getSearchTerms()
+  const { titles, keywords, topHypothesisId } = await getSearchTerms()
   const perRegionBudget = Math.max(1, Math.ceil(qualifiedBudget / regions.length))
 
   let totalDiscovered = 0
@@ -141,7 +141,7 @@ export async function runProspectingPipeline(qualifiedBudget: number): Promise<P
         instagram_handle: null,
         whatsapp: null,
         source: 'apollo_search',
-        icp_hypothesis_id: null,
+        icp_hypothesis_id: topHypothesisId,
         fit_score: candidate.fit_score,
         trigger: null,
         pain_signal: null,

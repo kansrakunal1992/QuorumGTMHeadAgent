@@ -71,12 +71,12 @@ not vague categories. Return ONLY JSON:
  * hypotheses + confirmed positioning in gtm_memory, so the search terms
  * evolve as the ICP does rather than being hardcoded once.
  */
-export async function getSearchTerms(): Promise<{ titles: string[]; keywords: string[] }> {
+export async function getSearchTerms(): Promise<{ titles: string[]; keywords: string[]; topHypothesisId: string | null }> {
   const supabase = createServiceClient()
   const [{ data: hypotheses }, { data: memory }] = await Promise.all([
     supabase
       .from('gtm_icp_hypotheses')
-      .select('description, likely_decision_types, value_proposition, status')
+      .select('id, description, likely_decision_types, value_proposition, status, confidence')
       .neq('status', 'rejected')
       .order('confidence', { ascending: false })
       .limit(10),
@@ -93,9 +93,17 @@ export async function getSearchTerms(): Promise<{ titles: string[]; keywords: st
     JSON.stringify({ icp_hypotheses: hypotheses ?? [], confirmed_icp_facts: memory ?? [] })
   )
 
+  // Whichever hypothesis most informed this search (highest confidence,
+  // since that's what's fed to the model first) is what today's discovered
+  // prospects get tagged with — an approximation, not per-prospect
+  // precision, but enough for the Learning Agent to later ask "did THIS
+  // hypothesis's prospects actually convert better than average?"
+  const topHypothesisId: string | null = hypotheses?.[0]?.id ?? null
+
   return {
     titles: result.titles?.length ? result.titles : ['Founder', 'Co-Founder', 'CEO', 'Managing Partner'],
     keywords: result.keywords ?? [],
+    topHypothesisId,
   }
 }
 

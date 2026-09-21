@@ -29,9 +29,13 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
     return { ok: false, error: 'RESEND_API_KEY or GTM_EMAIL_FROM not set' }
   }
 
-  const footer =
-    process.env.GTM_EMAIL_FOOTER ||
-    '\n\n---\nIf you\u2019d rather not hear from me again, just reply and let me know.'
+  // Always exactly one blank line between the message and the footer,
+  // regardless of what GTM_EMAIL_FOOTER contains (previously this was
+  // baked into the default string only — a custom footer like
+  // "Kunal Kansra, +91-..." ran straight into the last line of the
+  // message with no separator at all).
+  const footerText = (process.env.GTM_EMAIL_FOOTER || 'If you\u2019d rather not hear from me again, just reply and let me know.').trim()
+  const body = `${input.text.trimEnd()}\n\n${footerText}`
 
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
@@ -43,7 +47,7 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
       from,
       to: [input.to],
       subject: input.subject,
-      text: input.text + footer,
+      text: body,
       ...(input.replyTo ? { reply_to: input.replyTo } : {}),
       ...(input.scheduledAt ? { scheduled_at: input.scheduledAt } : {}),
     }),

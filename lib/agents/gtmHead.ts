@@ -16,6 +16,7 @@ import { proposeExperiment, createExperiment } from './experimentAgent'
 import { proposeProductRecommendation } from './productAgent'
 import { runAttributionPass } from './attributionAgent'
 import { runWeeklyDigest } from './digestAgent'
+import { runIcpLearningPass } from './icpLearningAgent'
 import { runNurturePass } from './nurtureAgent'
 import { runProspectingPipeline } from './prospectingAgent'
 import { queueOutreach } from './outreachAgent'
@@ -153,6 +154,25 @@ export async function runDailyCycle(): Promise<DailyCycleResult> {
       }
     } catch (err) {
       console.error('[gtmHead] weekly digest failed', err)
+    }
+
+    // ICP hypothesis confidence + CTA-effectiveness — the piece that
+    // actually closes the loop: updates who future prospecting targets and
+    // what CTA future outreach/nurture defaults to, based on real
+    // conversion outcomes rather than just LLM judgment. Same Monday
+    // cadence, same "say nothing below minimum sample size" discipline.
+    try {
+      const learningResult = await runIcpLearningPass()
+      if (learningResult) {
+        await logActivity({
+          action_type: 'memory_update', channel: 'internal', autonomy_level: LEVEL_A,
+          target: 'icp_learning_pass', reason: learningResult, hypothesis: null, content: null,
+          status: 'done', result: null, metric: null, cost: 0, confidence: null,
+          follow_up: null, experiment_id: null,
+        })
+      }
+    } catch (err) {
+      console.error('[gtmHead] icp learning pass failed', err)
     }
   }
 
@@ -376,7 +396,7 @@ export async function runDailyCycle(): Promise<DailyCycleResult> {
             }
 
             const newStatus = queued.mode === 'autonomous_sent' ? 'contacted' : 'queued'
-            await supabase.from('gtm_prospects').update({ status: newStatus, last_contacted_at: new Date().toISOString() }).eq('id', prospect.id)
+            await supabase.from('gtm_prospects').update({ status: newStatus, last_contacted_at: new Date().toISOString(), cta_type_used: queued.cta_type }).eq('id', prospect.id)
             actionsDone++
             sentThisRun++
             if (queued.mode !== 'autonomous_sent') founderActionsQueued++

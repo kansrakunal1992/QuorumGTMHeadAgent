@@ -20,8 +20,22 @@ import { generateJson } from '../ai-client'
 import { sendEmail } from '../providers/resendProvider'
 import { QUORUM_FREE_SESSION_URL, QUORUM_BOOKING_URL } from '../config'
 import { nextSendTime } from '../sendTiming'
+import { createShortLink } from '../shortLink'
 
 const SHARED_GATE_DAYS = 3 // matches lib/notification-throttle.ts's SHARED_NUDGE_GATE_DAYS in the main app
+
+/** Same real-conversion-data feed as outreachAgent.ts — see icpLearningAgent.ts for who writes these. */
+async function getMessagingLearnings(): Promise<string[]> {
+  const supabase = createServiceClient()
+  const { data } = await supabase
+    .from('gtm_memory')
+    .select('content')
+    .eq('category', 'messaging')
+    .eq('status', 'active')
+    .order('last_validated_at', { ascending: false })
+    .limit(5)
+  return (data ?? []).map((r) => r.content)
+}
 
 interface NurtureCandidate {
   user_id: string
@@ -88,9 +102,10 @@ invitation from the founder to go deeper, e.g. "I noticed you ran a
 decision through Quorum — want to do a real one together?" Keep it short.
 No hard sell, no fake urgency. Default to "free_session" as the CTA unless
 there's a specific reason in the input to believe paid is a better fit —
-default to free.
+default to free. You'll also be given "recent_messaging_learnings" — real
+conversion data from past outreach/nurture emails, when enough exists (may
+be empty). Weight that real data over the default rule when they conflict.
 Return ONLY JSON: { "subject": string, "message": string, "cta_type": "free_session"|"paid_session" }`
-
 export interface NurtureRunResult {
   candidates: number
   sent: number
@@ -107,7 +122,11 @@ export async function runNurturePass(dailyLimit: number): Promise<NurtureRunResu
 
   for (const candidate of candidates) {
     try {
-      const draft = await generateJson<NurtureDraft>(SYSTEM_PROMPT, JSON.stringify({ session_count: candidate.session_count }))
+      const recentMessagingLearnings = await getMessagingLearnings()
+      const draft = await generateJson<NurtureDraft>(
+        SYSTEM_PROMPT,
+        JSON.stringify({ session_count: candidate.session_count, recent_messaging_learnings: recentMessagingLearnings })
+      )
 
       const ctaBase = draft.cta_type === 'paid_session' ? QUORUM_BOOKING_URL : QUORUM_FREE_SESSION_URL
       const ctaUrl = new URL(ctaBase)
@@ -117,17 +136,20 @@ export async function runNurturePass(dailyLimit: number): Promise<NurtureRunResu
       ctaUrl.searchParams.set('utm_source', 'gtm_head_nurture')
       ctaUrl.searchParams.set('utm_campaign', 'existing_user_nurture')
       ctaUrl.searchParams.set('utm_content', candidate.user_id)
+      // Clean quorumvault.org/go/xxxxx link, not a raw url with utm params
+      // visible — same reasoning as outreachAgent.ts.
+      const cleanUrl = await createShortLink(ctaUrl.toString(), draft.cta_type === 'paid_session' ? 'kunal' : 'kunal_elite')
 
       const result = await sendEmail({
         to: candidate.email,
         subject: draft.subject,
-        text: `${draft.message}\n\n${ctaUrl.toString()}`,
+        text: `${draft.message}\n\n${cleanUrl}`,
         replyTo: process.env.GTM_EMAIL_REPLY_TO || undefined,
         scheduledAt: nextSendTime(null),
       })
 
       if (result.ok) {
-        await supabase.from('gtm_nurture_log').insert({ user_id: candidate.user_id, session_count_at_send: candidate.session_count })
+        await supabase.from('gtm_nurture_log').insert({ user_id: candidate.user_id, session_count_at_send: candidate.session_count, cta_type_used: draft.cta_type })
         sent++
       }
       // A failed send is NOT recorded in gtm_nurture_log — it stays

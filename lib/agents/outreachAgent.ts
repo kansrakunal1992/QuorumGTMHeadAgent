@@ -26,6 +26,7 @@ import { generateJson } from '../ai-client'
 import { getConnectedChannels, QUORUM_BOOKING_URL, QUORUM_FREE_SESSION_URL } from '../config'
 import { sendEmail } from '../providers/resendProvider'
 import { nextSendTime } from '../sendTiming'
+import { createShortLink } from '../shortLink'
 import type { Prospect, Channel } from '../types'
 
 const SYSTEM_PROMPT = `You are the Outreach Agent for Quorum's GTM Head.
@@ -45,6 +46,10 @@ message for the given prospect and channel. Requirements:
     they're already warm (a reply, a referral, prior engagement) — asking a
     stranger for money on a first cold email is a bigger ask than it needs
     to be.
+  You'll also be given "recent_messaging_learnings" — real conversion data
+  from past outreach, when enough of it exists to say anything (it may be
+  empty, especially early on — that's fine, fall back to the rule above).
+  Weight that real data over the general rule when they conflict.
   Write the link's placement into the message body as the literal token
   {{CTA_LINK}} at the exact point the URL should appear (e.g. "...you can
   grab a slot here: {{CTA_LINK}}") — the real URL is substituted afterward,
@@ -65,6 +70,24 @@ interface OutreachDraft {
   why_this_message: string
   recommended_timing: string
   expected_objective: string
+}
+
+/**
+ * Real conversion-derived learnings (written by icpLearningAgent.ts, e.g.
+ * "free_session CTA converts at 2x paid_session for cold outreach") — this
+ * is what makes the CTA rule above adjust itself over time instead of
+ * being a permanently-fixed default. Empty until enough volume exists.
+ */
+async function getMessagingLearnings(): Promise<string[]> {
+  const supabase = createServiceClient()
+  const { data } = await supabase
+    .from('gtm_memory')
+    .select('content')
+    .eq('category', 'messaging')
+    .eq('status', 'active')
+    .order('last_validated_at', { ascending: false })
+    .limit(5)
+  return (data ?? []).map((r) => r.content)
 }
 
 /** Adds UTM + a per-prospect id so link clicks/bookings can (eventually) be attributed back to this outreach. */
@@ -92,7 +115,8 @@ function applyCta(message: string, ctaUrl: string): string {
 }
 
 export async function draftOutreach(prospect: Prospect, channel: Channel): Promise<OutreachDraft> {
-  return generateJson<OutreachDraft>(SYSTEM_PROMPT, JSON.stringify({ prospect, channel }))
+  const recentMessagingLearnings = await getMessagingLearnings()
+  return generateJson<OutreachDraft>(SYSTEM_PROMPT, JSON.stringify({ prospect, channel, recent_messaging_learnings: recentMessagingLearnings }))
 }
 
 function destinationFor(prospect: Prospect, channel: Channel): string | null {
@@ -153,6 +177,7 @@ async function insertFounderAction(
 export interface QueueOutreachResult {
   mode: 'founder_action' | 'autonomous_sent' | 'autonomous_failed'
   id: string
+  cta_type: OutreachDraft['cta_type']
   scheduledAt?: string
   error?: string
 }
@@ -160,7 +185,8 @@ export interface QueueOutreachResult {
 /**
  * Queues (or, for email with autonomy on, actually sends) outreach for a
  * prospect. Caller (gtmHead) uses `mode` to decide usage-limit bucket and
- * activity-log autonomy_level.
+ * activity-log autonomy_level, and persists `cta_type` onto the prospect
+ * row so icpLearningAgent.ts can later compute which CTA actually converts.
  */
 export async function queueOutreach(
   prospect: Prospect,
@@ -172,12 +198,14 @@ export async function queueOutreach(
   const draft = await draftOutreach(prospect, channel)
   // Substitute the real, tracked CTA URL — never trust the model to have
   // written (or correctly formatted) it itself.
-  draft.message = applyCta(draft.message, trackedCtaUrl(draft.cta_type, prospect, channel))
+  const fullTrackedUrl = trackedCtaUrl(draft.cta_type, prospect, channel)
+  const cleanUrl = await createShortLink(fullTrackedUrl, draft.cta_type === 'paid_session' ? 'kunal' : 'kunal_elite')
+  draft.message = applyCta(draft.message, cleanUrl)
   const autonomous = isAutonomousChannel(channel)
 
   if (!autonomous) {
     const id = await insertFounderAction(prospect, channel, destination, draft, 'pending')
-    return { mode: 'founder_action', id }
+    return { mode: 'founder_action', id, cta_type: draft.cta_type }
   }
 
   if (channel === 'email') {
@@ -192,16 +220,16 @@ export async function queueOutreach(
 
     if (result.ok) {
       const id = await insertFounderAction(prospect, channel, destination, draft, 'sent')
-      return { mode: 'autonomous_sent', id, scheduledAt }
+      return { mode: 'autonomous_sent', id, cta_type: draft.cta_type, scheduledAt }
     }
 
     // Send failed — don't lose the draft, fall back to a Founder Action.
     const id = await insertFounderAction(prospect, channel, destination, draft, 'pending')
-    return { mode: 'autonomous_failed', id, error: result.error }
+    return { mode: 'autonomous_failed', id, cta_type: draft.cta_type, error: result.error }
   }
 
   // WhatsApp/Instagram: token-gated but the actual send call isn't wired
   // yet — honest fallback rather than a fake "sent".
   const id = await insertFounderAction(prospect, channel, destination, draft, 'pending')
-  return { mode: 'founder_action', id }
+  return { mode: 'founder_action', id, cta_type: draft.cta_type }
 }
