@@ -21,6 +21,7 @@ import { sendEmail } from '../providers/resendProvider'
 import { QUORUM_FREE_SESSION_URL, QUORUM_BOOKING_URL } from '../config'
 import { nextSendTime } from '../sendTiming'
 import { createShortLink } from '../shortLink'
+import { POSITIONING_DIRECTIVE, getFounderPreferences } from '../positioning'
 
 const SHARED_GATE_DAYS = 3 // matches lib/notification-throttle.ts's SHARED_NUDGE_GATE_DAYS in the main app
 
@@ -100,11 +101,22 @@ decisions) but hasn't come back or paid. This is NOT a generic
 re-engagement nudge and NOT a value-teaser — it's a direct, warm, human
 invitation from the founder to go deeper, e.g. "I noticed you ran a
 decision through Quorum — want to do a real one together?" Keep it short.
-No hard sell, no fake urgency. Default to "free_session" as the CTA unless
-there's a specific reason in the input to believe paid is a better fit —
-default to free. You'll also be given "recent_messaging_learnings" — real
-conversion data from past outreach/nurture emails, when enough exists (may
-be empty). Weight that real data over the default rule when they conflict.
+No hard sell, no fake urgency.
+
+${POSITIONING_DIRECTIVE}
+
+This person already used the product, so you can be concrete: reference
+what actually happens next time (e.g. "the system will recall a pattern
+from your last decision" or "you'll see your bias fingerprint start to
+form") rather than generic "come back and try it again."
+
+Default to "free_session" as the CTA unless there's a specific reason in
+the input to believe paid is a better fit — default to free. You'll also
+be given "recent_messaging_learnings" — real conversion data from past
+outreach/nurture emails, when enough exists (may be empty). Weight that
+real data over the default rule when they conflict. You'll also be given
+"founder_preferences" — things the founder has previously rejected or
+asked for more of — follow these.
 Return ONLY JSON: { "subject": string, "message": string, "cta_type": "free_session"|"paid_session" }`
 export interface NurtureRunResult {
   candidates: number
@@ -122,10 +134,17 @@ export async function runNurturePass(dailyLimit: number): Promise<NurtureRunResu
 
   for (const candidate of candidates) {
     try {
-      const recentMessagingLearnings = await getMessagingLearnings()
+      const [recentMessagingLearnings, founderPreferences] = await Promise.all([
+        getMessagingLearnings(),
+        getFounderPreferences(),
+      ])
       const draft = await generateJson<NurtureDraft>(
         SYSTEM_PROMPT,
-        JSON.stringify({ session_count: candidate.session_count, recent_messaging_learnings: recentMessagingLearnings })
+        JSON.stringify({
+          session_count: candidate.session_count,
+          recent_messaging_learnings: recentMessagingLearnings,
+          founder_preferences: founderPreferences,
+        })
       )
 
       const ctaBase = draft.cta_type === 'paid_session' ? QUORUM_BOOKING_URL : QUORUM_FREE_SESSION_URL

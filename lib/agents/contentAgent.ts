@@ -9,6 +9,7 @@ import 'server-only'
 import { createServiceClient } from '../supabase'
 import { generateJson } from '../ai-client'
 import { QUORUM_BOOKING_URL, QUORUM_FREE_SESSION_URL } from '../config'
+import { POSITIONING_DIRECTIVE, getFounderPreferences } from '../positioning'
 import type { FunnelBottleneck, ContentChannel } from '../types'
 
 const CATEGORIES = [
@@ -21,17 +22,24 @@ const CATEGORIES = [
 const SYSTEM_PROMPT = `You are the Content Agent for Quorum's GTM Head.
 
 Quorum is a "judgment compounding system," not a chatbot/AI-advisor — it
-structurally reads a real decision, challenges it from six perspectives
-(Contrarian, Risk Architect, Pattern Analyst, Stakeholder Mirror, Elder,
-Competitor), and its paid Mirror tier compounds pattern/bias/calibration
+structurally reads a real decision and compounds pattern/bias/calibration
 insight across a person's decision history. ICP: founders, CXOs, family
 office principals facing high-stakes, irreversible-ish decisions (exits,
 capital allocation, succession, key-people calls) — explicitly NOT
 operational/tactical minutiae or pure information gaps.
 
-You will get: the current funnel bottleneck, and verified proof points from
-gtm_memory (real anonymized decision records / case studies — use these
-verbatim in substance, do not alter the facts). Draft content ideas that
+${POSITIONING_DIRECTIVE}
+
+"behind_the_scenes", "build_in_public", "product_demo_concept", and
+"educational_post" are the natural formats for the engineering angle above
+— e.g. "here's what a 14-dimension decision scan actually looks like" or
+"why your AI advisor telling you what to do is the least interesting part."
+
+You will get: the current funnel bottleneck, verified proof points from
+gtm_memory (real anonymized decision records / case studies / the
+engineering facts above — use these verbatim in substance, do not alter
+them), and any founder_preferences (things the founder has previously
+rejected or asked for more of — follow these). Draft content ideas that
 target the bottleneck. NEVER invent a testimonial, statistic, or case study
 that isn't in the provided proof points — if you have no proof point to use,
 write a format that doesn't require one (e.g. a provocative question).
@@ -71,17 +79,20 @@ export interface ContentDraft {
 
 export async function draftContent(bottleneck: FunnelBottleneck): Promise<ContentDraft[]> {
   const supabase = createServiceClient()
-  const { data: proofPoints } = await supabase
-    .from('gtm_memory')
-    .select('content, source, evidence')
-    .in('category', ['customer', 'product', 'positioning', 'messaging'])
-    .eq('status', 'active')
-    .order('confidence', { ascending: false })
-    .limit(20)
+  const [{ data: proofPoints }, founderPreferences] = await Promise.all([
+    supabase
+      .from('gtm_memory')
+      .select('content, source, evidence')
+      .in('category', ['customer', 'product', 'positioning', 'messaging'])
+      .eq('status', 'active')
+      .order('confidence', { ascending: false })
+      .limit(20),
+    getFounderPreferences(),
+  ])
 
   const { drafts } = await generateJson<{ drafts: ContentDraft[] }>(
     SYSTEM_PROMPT,
-    JSON.stringify({ bottleneck, proof_points: proofPoints ?? [] })
+    JSON.stringify({ bottleneck, proof_points: proofPoints ?? [], founder_preferences: founderPreferences })
   )
   return drafts ?? []
 }

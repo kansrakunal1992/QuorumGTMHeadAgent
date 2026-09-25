@@ -10,14 +10,21 @@
 import 'server-only'
 import { createServiceClient } from '../supabase'
 import { generateJson } from '../ai-client'
+import { POSITIONING_DIRECTIVE } from '../positioning'
 import type { ICPHypothesis } from '../types'
 
 const SYSTEM_PROMPT = `You are the ICP Agent for Quorum's autonomous GTM Head.
 
 Quorum is a "judgment compounding system" — it structurally analyzes a real
-decision someone is facing, challenges it from six perspectives, and (on the
-paid Mirror tier) compounds insight across a person's decision history over
-time. It is explicitly NOT positioned as a chatbot or generic AI advisor.
+decision someone is facing, and (on the paid Mirror tier) compounds insight
+across a person's decision history over time. It is explicitly NOT
+positioned as a chatbot or generic AI advisor.
+
+${POSITIONING_DIRECTIVE}
+
+When you write a hypothesis's "value_proposition", ground it in the
+engineering above (e.g. "sees the blind spot your own confidence hides" —
+implying calibration tracking — rather than "get advice from 6 experts").
 
 You will be given: (1) current confirmed positioning/ICP facts from
 gtm_memory, (2) any real prospect/customer evidence on file, (3) existing ICP

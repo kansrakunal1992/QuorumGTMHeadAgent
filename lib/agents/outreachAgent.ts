@@ -27,6 +27,7 @@ import { getConnectedChannels, QUORUM_BOOKING_URL, QUORUM_FREE_SESSION_URL } fro
 import { sendEmail } from '../providers/resendProvider'
 import { nextSendTime } from '../sendTiming'
 import { createShortLink } from '../shortLink'
+import { POSITIONING_DIRECTIVE, getFounderPreferences } from '../positioning'
 import type { Prospect, Channel } from '../types'
 
 const SYSTEM_PROMPT = `You are the Outreach Agent for Quorum's GTM Head.
@@ -37,6 +38,14 @@ message for the given prospect and channel. Requirements:
 - Start a relevant conversation. Do not aggressively sell.
 - No manipulative language. No fabricated personal knowledge about the
   prospect beyond what's given in their record.
+
+${POSITIONING_DIRECTIVE}
+
+For a cold first-touch specifically: opening with a real mechanic (e.g. "a
+system that scores a decision across 14 structural dimensions before any
+advice happens" or "recalls a pattern from your own past decisions") is a
+much sharper hook to a skeptical exec than "AI advisors" — use it.
+
 - The message MUST include exactly one CTA, so it's possible to measure
   whether outreach is actually converting. Pick whichever of these two real,
   live, founder-led sessions fits a COLD first touch to a stranger:
@@ -50,6 +59,8 @@ message for the given prospect and channel. Requirements:
   from past outreach, when enough of it exists to say anything (it may be
   empty, especially early on — that's fine, fall back to the rule above).
   Weight that real data over the general rule when they conflict.
+  You'll also be given "founder_preferences" — things the founder has
+  previously rejected or asked for more of on real drafts. Follow these.
   Write the link's placement into the message body as the literal token
   {{CTA_LINK}} at the exact point the URL should appear (e.g. "...you can
   grab a slot here: {{CTA_LINK}}") — the real URL is substituted afterward,
@@ -115,8 +126,14 @@ function applyCta(message: string, ctaUrl: string): string {
 }
 
 export async function draftOutreach(prospect: Prospect, channel: Channel): Promise<OutreachDraft> {
-  const recentMessagingLearnings = await getMessagingLearnings()
-  return generateJson<OutreachDraft>(SYSTEM_PROMPT, JSON.stringify({ prospect, channel, recent_messaging_learnings: recentMessagingLearnings }))
+  const [recentMessagingLearnings, founderPreferences] = await Promise.all([
+    getMessagingLearnings(),
+    getFounderPreferences(),
+  ])
+  return generateJson<OutreachDraft>(
+    SYSTEM_PROMPT,
+    JSON.stringify({ prospect, channel, recent_messaging_learnings: recentMessagingLearnings, founder_preferences: founderPreferences })
+  )
 }
 
 function destinationFor(prospect: Prospect, channel: Channel): string | null {

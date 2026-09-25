@@ -19,8 +19,9 @@ if (!url || !key) {
 const supabase = createClient(url, key)
 
 const SEED_SOURCE = 'quorumvault.org (fetched 2026-09-15)'
+const CODE_SOURCE = 'quorum_clean codebase, components/ + supabase/*.sql (read 2026-09-20)'
 
-const seeds: Array<{ category: string; content: string; confidence: number }> = [
+const seeds: Array<{ category: string; content: string; confidence: number; source?: string; evidence?: string[] }> = [
   {
     category: 'positioning',
     content:
@@ -111,6 +112,78 @@ const seeds: Array<{ category: string; content: string; confidence: number }> = 
       'for the free product tier cold.',
     confidence: 1,
   },
+
+  // ── Real engineering differentiators, read directly from the codebase — ──
+  // ── grounds the repositioning away from "six AI personas" (2026-09-20) ──
+  {
+    category: 'product',
+    content:
+      'Decision Ontology: every decision is scored across 14 structural dimensions (reversibility, time_horizon, ' +
+      'stakes_magnitude, outcome_uncertainty, value_conflict, identity_alignment, regret_asymmetry, ' +
+      'upstream_dependency, ambiguity, task_complexity, decision_discriminating_info, time_pressure, ' +
+      'decision_unit, emotional_intensity), each with a 1-5 score, a confidence value, and a plain-English ' +
+      'rationale. A rule engine reads this vector and can REDIRECT (send the user to clarify something first), ' +
+      'GATE (block until a condition is met), or OPEN (proceed to advisors) — the system can tell someone their ' +
+      'decision is not well-formed yet, before any advice happens. Shown to the user as a "Decision X-Ray" ' +
+      '(OntologyRevealCard) on their first few sessions.',
+    confidence: 1,
+    source: CODE_SOURCE,
+    evidence: ['supabase/sprint11a_14dim_ontology.sql', 'components/OntologyRevealCard.tsx'],
+  },
+  {
+    category: 'product',
+    content:
+      'Rule Recall: before a returning user even finishes answering this time, Quorum can surface a rule or ' +
+      'pattern it recalled from their OWN past decisions (RuleRecallBanner), timed to appear before they submit ' +
+      'their answers so they can factor it in — structural memory of the person\'s own history, not generic advice.',
+    confidence: 1,
+    source: CODE_SOURCE,
+    evidence: ['components/RuleRecallBanner.tsx'],
+  },
+  {
+    category: 'product',
+    content:
+      'Bias Fingerprint (Mirror module): every session is tagged for a bias signal (distorting / neutral / ' +
+      'adaptive), building a personal bias fingerprint across many decisions over time — plain-English bias ' +
+      'feedback is also shown from session 1, no subscription required (BiasNoteCard), closing the gap before ' +
+      'someone would otherwise have to wait for a Mirror unlock to see any bias insight at all.',
+    confidence: 1,
+    source: CODE_SOURCE,
+    evidence: ['components/BiasFingerprint.tsx', 'components/BiasNoteCard.tsx', 'lib/bias-scorer.ts'],
+  },
+  {
+    category: 'product',
+    content:
+      'Mirror Insight: one synthesized observation per visit, derived deterministically from patterns across ' +
+      'multiple product modules at once — explicitly "an observation no single module can surface on its own." ' +
+      'Requires at least 5 sessions of history; returns nothing before that rather than a weak guess.',
+    confidence: 1,
+    source: CODE_SOURCE,
+    evidence: ['components/MirrorInsightCard.tsx'],
+  },
+  {
+    category: 'product',
+    content:
+      'Calibration Sparkline (Mirror module): tracks a person\'s pre-decision confidence vs. their retrospective ' +
+      'confidence over time, showing whether they are systematically over- or under-confident as a pattern — ' +
+      'not a one-off score. Also: a Decision Graph (force-directed, components/DecisionGraph.tsx) renders an ' +
+      'actual visual network of a person\'s own decision history.',
+    confidence: 1,
+    source: CODE_SOURCE,
+    evidence: ['components/CalibrationSparkline.tsx', 'components/DecisionGraph.tsx'],
+  },
+  {
+    category: 'founder_preference',
+    content:
+      'Founder instruction (2026-09-20): do not lead GTM messaging with the "six AI personas" / "Council" / ' +
+      '"AI advisors" framing — that space is now crowded (comparable multi-AI-advisor "board" apps exist). Lead ' +
+      'instead with the underlying engineering: decision ontology scoring, bias parameter tagging, rule/context ' +
+      'recall, and Mirror\'s cross-session pattern surfacing (bias fingerprint, calibration tracking, decision ' +
+      'graph). The personas still exist technically and can be mentioned in passing, never as the headline.',
+    confidence: 1,
+    source: 'founder, stated in chat (2026-09-20)',
+    evidence: [],
+  },
 ]
 
 async function main() {
@@ -126,9 +199,9 @@ async function main() {
     const { error } = await supabase.from('gtm_memory').insert({
       category: seed.category,
       content: seed.content,
-      source: SEED_SOURCE,
+      source: seed.source ?? SEED_SOURCE,
       confidence: seed.confidence,
-      evidence: ['https://quorumvault.org'],
+      evidence: seed.evidence ?? ['https://quorumvault.org'],
     })
     if (error) {
       console.error('Failed to insert seed:', seed.content.slice(0, 60), error.message)

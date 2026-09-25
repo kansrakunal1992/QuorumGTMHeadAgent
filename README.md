@@ -247,6 +247,47 @@ existing nudge crons:
 Runs automatically every cycle once `GTM_EMAIL_AUTONOMOUS=true` is set —
 no separate flag needed, same master switch as cold outreach.
 
+### E. Repositioning: engineering over personas
+
+Founder instruction: stop leading with the "six AI personas" / "Council" /
+"AI advisors" framing — that space is now crowded (comparable multi-AI-
+advisor "board" apps exist) — and lead instead with what actually
+differentiates Quorum: the engineering underneath. Read directly out of
+the latest `quorum_clean` codebase (not invented) and now baked into every
+content/outreach/nurture prompt as a shared directive
+(`lib/positioning.ts`):
+
+- **Decision Ontology** — 14 structural dimensions scored per decision
+  (reversibility, time horizon, stakes, value conflict, regret asymmetry,
+  etc.), feeding a rule engine that can REDIRECT/GATE a decision before
+  any advice happens at all.
+- **Rule Recall** — surfaces a pattern from the person's OWN past
+  decisions before they finish answering this time.
+- **Bias Fingerprint** — every session tagged distorting/neutral/adaptive,
+  building a personal pattern over time; plain-English bias feedback shown
+  from session 1, free.
+- **Mirror Insight** — one cross-module synthesized observation per visit
+  that no single part of the system could produce alone.
+- **Calibration Sparkline / Decision Graph** — tracks whether someone is
+  actually over/under-confident over time, and visualizes their own
+  decision history as a network.
+
+The personas still exist technically and can be mentioned in passing —
+never as the hook. `icpAgent.ts`'s hypothesis-generation was updated too,
+so new value propositions get grounded in this engineering rather than
+"talk to 6 experts."
+
+**Also fixed while in there:** founder feedback (Reject/Dismiss on the
+dashboard) was being written to `gtm_memory` as `founder_preference` but
+nothing ever read it back — every draft-generating agent now pulls recent
+founder preferences into its prompt too, so a rejection actually changes
+future drafts instead of just sitting in a table.
+
+**Action needed:** run `npm run seed:memory` again after deploying — it's
+additive (skips anything already seeded) and will add the new engineering
+facts above to `gtm_memory` so the agents have real vocabulary to draw on
+immediately rather than waiting for the LLM to rediscover them.
+
 ### D. Clean links + footer fix
 
 Two small but real production issues, fixed:
@@ -411,6 +452,7 @@ lib/
     googleCalendarProvider.ts  Reads /kunal_elite bookings (service-account JWT)
   sendTiming.ts       Approximate regional business-hour scheduling helper
   shortLink.ts        Creates quorumvault.org/go/xxxxx links (clean, hides tracking)
+  positioning.ts      Shared repositioning directive (engineering > personas) + founder-preference feed
   agents/
     gtmHead.ts              Orchestrator — the daily loop
     analyticsAgent.ts       Reads the main app's real funnel data
